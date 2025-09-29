@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+  <style>
+    svg { color: #5D3FD3; }
+    @media (prefers-color-scheme: dark) {
+      svg { color: #30D5C8; }
+    }
+  </style>
+  <path stroke-linecap="round" stroke-linejoin="round" d="M12 15.75a3.75 3.75 0 1 0 0-7.5 3.75 3.75 0 0 0 0 7.5Z" />
+  <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12h4.795a5.25 5.25 0 0 1 9.91 0h4.795M5.636 7.636a9 9 0 1 1 12.728 0M5.636 16.364a9 9 0 1 0 12.728 0" />
+</svg>
