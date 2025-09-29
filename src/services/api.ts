@@ -1,12 +1,7 @@
 /**
- * Pokemon TCG API service
- * Handles all API communication with the Pokemon TCG API
+ * Pokemon TCG API service for tcgdex.dev (supports multilingual)
  */
-
-/**
- * Fallback image URL for when card images fail to load
- */
-export const FALLBACK_IMAGE = 'https://images.pokemontcg.io/swsh45/1_hires.png';
+export const FALLBACK_IMAGE = 'https://tcgdex.dev/static/media/pokeball.c1eb8943.png';
 
 /**
  * Ensure URLs use HTTPS protocol for security
@@ -21,30 +16,38 @@ const ensureHttps = (url: string): string => {
  */
 const transformImageUrls = (item: any) => {
   // Transform card images
-  if (item.images) {
-    item.images.small = ensureHttps(item.images.small);
-    item.images.large = ensureHttps(item.images.large);
+  if (item.image) {
+    item.image = ensureHttps(item.image);
   }
-  
-  // Transform set images
-  if (item.set?.images) {
-    item.set.images.symbol = ensureHttps(item.set.images.symbol);
-    item.set.images.logo = ensureHttps(item.set.images.logo);
+  // Transform set image
+  if (item.set && item.set.logo) {
+    item.set.logo = ensureHttps(item.set.logo);
   }
-  
   return item;
 };
 
 /**
- * Simple HTTP client using fetch instead of axios
+ * Simple HTTP client using fetch for tcgdex.dev
+ * Accepts a language prefix for endpoints ('en', 'fr', etc.)
  */
 class ApiClient {
-  private baseURL = 'https://api.pokemontcg.io/v2';
-  private apiKey = import.meta.env.VITE_POKEMON_TCG_API_KEY;
+  private baseURL = 'https://tcgdex.dev/api/v2';
+  private lang: string; // 'en', 'fr', etc.
 
-  private async request<T>(endpoint: string, params?: Record<string, any>): Promise<T> {
-    const url = new URL(`${this.baseURL}${endpoint}`);
-    
+  constructor(lang: string = 'en') {
+    this.lang = lang;
+  }
+
+  setLanguage(lang: string) {
+    this.lang = lang;
+  }
+
+  private async request<T>(
+    endpoint: string,
+    params?: Record<string, any>
+  ): Promise<T> {
+    const url = new URL(`${this.baseURL}/${this.lang}${endpoint}`);
+
     if (params) {
       Object.entries(params).forEach(([key, value]) => {
         if (value !== undefined && value !== null && value !== '') {
@@ -53,35 +56,20 @@ class ApiClient {
       });
     }
 
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-
-    if (this.apiKey) {
-      headers['X-Api-Key'] = this.apiKey;
-    }
-
     try {
-      const response = await fetch(url.toString(), { headers });
-      
+      const response = await fetch(url.toString());
       if (!response.ok) {
-        if (response.status === 401 || response.status === 403) {
-          console.error('API Key error. Please check your Pokemon TCG API key.');
-        }
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 
       const data = await response.json();
-      
-      // Transform image URLs to use HTTPS
-      if (data?.data) {
-        if (Array.isArray(data.data)) {
-          data.data = data.data.map(transformImageUrls);
-        } else {
-          data.data = transformImageUrls(data.data);
-        }
-      }
 
+      // Transform image URLs
+      if (Array.isArray(data)) {
+        return data.map(transformImageUrls) as any as T;
+      } else if (typeof data === 'object' && data !== null) {
+        return transformImageUrls(data) as T;
+      }
       return data;
     } catch (error) {
       console.error('API request failed:', error);
@@ -94,115 +82,61 @@ class ApiClient {
   }
 }
 
-const apiClient = new ApiClient();
+// You may want to pull the language setting from a global store or user profile
+let selectedLang = 'en'; // Can be switched to 'fr' dynamically
+
+const apiClient = new ApiClient(selectedLang);
 
 /**
- * Fetch cards with various filters and pagination
+ * Set API language
  */
-export const fetchCards = async (params: {
-  page?: number;
-  pageSize?: number;
-  q?: string;
-  orderBy?: string;
-}) => {
-  return apiClient.get('/cards', params);
+export const setApiLanguage = (lang: string) => {
+  selectedLang = lang;
+  apiClient.setLanguage(lang);
 };
 
 /**
- * Fetch a single card by its unique ID
+ * Fetch all cards, with optional pagination and search
+ */
+export const fetchCards = async (params?: { page?: number; q?: string }) => {
+  // tcgdex.dev uses offset & limit for pagination; adjust if needed
+  const q = params?.q ? `?q=${encodeURIComponent(params.q)}` : '';
+  return await apiClient.get(`/cards${q}`);
+};
+
+/**
+ * Fetch a single card by its ID
  */
 export const fetchCardById = async (id: string) => {
-  const response = await apiClient.get<{ data: any }>(`/cards/${id}`);
-  return response.data;
+  return await apiClient.get(`/cards/${id}`);
 };
 
 /**
- * Fetch all available sets
+ * Fetch all sets
  */
 export const fetchSets = async () => {
-  return apiClient.get('/sets');
+  return await apiClient.get('/sets');
 };
 
 /**
  * Fetch a single set by its ID
  */
 export const fetchSetById = async (id: string) => {
-  const response = await apiClient.get<{ data: any }>(`/sets/${id}`);
-  return response.data;
+  return await apiClient.get(`/sets/${id}`);
 };
 
 /**
- * Fetch cards from a specific set with pagination support
+ * Fetch cards from a specific set
  */
-export const fetchCardsFromSet = async (setId: string, params?: {
-  page?: number;
-  pageSize?: number;
-  orderBy?: string;
-}) => {
-  return apiClient.get('/cards', {
-    q: `set.id:${setId}`,
-    orderBy: params?.orderBy || 'number',
-    page: params?.page || 1,
-    pageSize: params?.pageSize || 24,
-    ...params,
-  });
+export const fetchCardsFromSet = async (setId: string) => {
+  // tcgdex.dev returns cards-per-set via: /sets/:id/cards
+  return await apiClient.get(`/sets/${setId}/cards`);
 };
 
 /**
- * Get market price for a card variant from TCGPlayer data
+ * Build query string for tcgdex.dev (basic text search)
+ * Note: tcgdex.dev query features may be less complex than pokemontcg.io
  */
-export const getCardPrice = (card: any, variant: string = 'normal'): number => {
-  if (!card.tcgplayer?.prices) return 0;
-  
-  // Map internal variant names to TCGPlayer price keys
-  const priceKeyMap: Record<string, string> = {
-    'regular': 'normal',
-    'reverse-holo': 'reverseHolofoil',
-    'holo': 'holofoil',
-    'full-art': 'normal', // Fallback to normal for special variants
-    'alt-art': 'normal',
-    'rainbow': 'normal',
-    'gold': 'normal',
-    'secret': 'normal',
-  };
-  
-  const priceKey = priceKeyMap[variant] || 'normal';
-  const priceData = card.tcgplayer.prices[priceKey];
-  
-  if (priceData) {
-    // Prefer market price, fallback to mid, then low
-    return priceData.market || priceData.mid || priceData.low || 0;
-  }
-  
-  // Fallback to first available price if specific variant not found
-  const firstPrice = Object.values(card.tcgplayer.prices)[0] as any;
-  return firstPrice?.market || firstPrice?.mid || firstPrice?.low || 0;
-};
-
-/**
- * Build search query string from filter object
- */
-export const buildQuery = (filters: Record<string, any>): string => {
-  const queries: string[] = [];
-
-  Object.entries(filters).forEach(([key, value]) => {
-    if (value === undefined || value === null || value === '') return;
-
-    if (Array.isArray(value)) {
-      if (value.length === 0) return;
-      
-      // Create OR query for array values
-      const arrayQuery = value.map(v => `${key}:"${v}"`).join(' OR ');
-      if (arrayQuery) queries.push(`(${arrayQuery})`);
-    } else if (typeof value === 'object') {
-      // Handle range queries (min/max)
-      if (value.min !== undefined) queries.push(`${key}:>=${value.min}`);
-      if (value.max !== undefined) queries.push(`${key}:<=${value.max}`);
-    } else {
-      // Handle simple string/number values
-      queries.push(`${key}:"${value}"`);
-    }
-  });
-
-  return queries.join(' ');
+export const buildQuery = (search: string) => {
+  return search;
 };
