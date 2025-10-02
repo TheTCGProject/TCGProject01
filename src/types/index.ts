@@ -1,11 +1,32 @@
 // src/types/index.ts
 
-/** Short-form Set information */
+// Types for legal and series info
+export interface SetLegal {
+  standard?: boolean;
+  expanded?: boolean;
+}
+
+export interface SerieBrief {
+  id: string;
+  name: string;
+}
+
 export interface SetBrief {
   id: string;
   name: string;
   logo?: string;
   symbol?: string;
+  serie?: SerieBrief;
+  cardCount?: {
+    total?: number;
+    official?: number;
+    reverse?: number;
+    holo?: number;
+    firstEd?: number;
+  };
+  tcgOnline?: string;
+  releaseDate?: string;
+  legal?: SetLegal;
 }
 
 /** TCGplayer price structure for card variants */

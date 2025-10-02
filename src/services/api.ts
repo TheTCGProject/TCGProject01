@@ -1,38 +1,37 @@
-/**
- * Pokemon TCG API service for tcgdex.dev (supports multilingual)
- */
+import { SetBrief, Card } from '../types';
+
+/** Fallback image for missing card/set images */
 export const FALLBACK_IMAGE = 'https://tcgdex.dev/static/media/pokeball.c1eb8943.png';
 
-/**
- * Ensure URLs use HTTPS protocol for security
- */
-const ensureHttps = (url: string): string => {
+/** Ensure all image URLs are HTTPS for CDN security */
+const ensureHttps = (url?: string): string => {
   if (!url) return '';
   return url.replace(/^http:\/\//i, 'https://');
 };
 
-/**
- * Transform API response data to ensure HTTPS URLs
- */
-const transformImageUrls = (item: any) => {
-  // Transform card images
-  if (item.image) {
-    item.image = ensureHttps(item.image);
+/** Globally upgrade image/image props for Card or Set responses */
+const transformImageUrls = <T extends Record<string, any>>(item: T): T => {
+  const obj = item as any;
+  if ('image' in obj && obj.image) {
+    obj.image = ensureHttps(obj.image);
   }
-  // Transform set image
-  if (item.set && item.set.logo) {
-    item.set.logo = ensureHttps(item.set.logo);
+  if ('set' in obj && obj.set) {
+    if ('logo' in obj.set && obj.set.logo) obj.set.logo = ensureHttps(obj.set.logo);
+    if ('symbol' in obj.set && obj.set.symbol) obj.set.symbol = ensureHttps(obj.set.symbol);
   }
-  return item;
+  if ('logo' in obj && obj.logo) {
+    obj.logo = ensureHttps(obj.logo);
+  }
+  if ('symbol' in obj && obj.symbol) {
+    obj.symbol = ensureHttps(obj.symbol);
+  }
+  return obj;
 };
 
-/**
- * Simple HTTP client using fetch for tcgdex.dev
- * Accepts a language prefix for endpoints ('en', 'fr', etc.)
- */
+/** API client for tcgdex.dev */
 class ApiClient {
   private baseURL = 'https://tcgdex.dev/api/v2';
-  private lang: string; // 'en', 'fr', etc.
+  private lang: string;
 
   constructor(lang: string = 'en') {
     this.lang = lang;
@@ -47,7 +46,6 @@ class ApiClient {
     params?: Record<string, any>
   ): Promise<T> {
     const url = new URL(`${this.baseURL}/${this.lang}${endpoint}`);
-
     if (params) {
       Object.entries(params).forEach(([key, value]) => {
         if (value !== undefined && value !== null && value !== '') {
@@ -55,26 +53,20 @@ class ApiClient {
         }
       });
     }
-
-    try {
-      const response = await fetch(url.toString());
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    const res = await fetch(url.toString());
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    const data = await res.json();
+    // Transform images everywhere
+    if (Array.isArray(data)) {
+      return data.map(transformImageUrls) as any as T;
+    } else if (typeof data === 'object' && data !== null) {
+      // If paginated (object with data), fix images in array
+      if ('data' in data && Array.isArray(data.data)) {
+        data.data = data.data.map(transformImageUrls);
       }
-
-      const data = await response.json();
-
-      // Transform image URLs
-      if (Array.isArray(data)) {
-        return data.map(transformImageUrls) as any as T;
-      } else if (typeof data === 'object' && data !== null) {
-        return transformImageUrls(data) as T;
-      }
-      return data;
-    } catch (error) {
-      console.error('API request failed:', error);
-      throw error;
+      return transformImageUrls(data) as T;
     }
+    return data;
   }
 
   async get<T>(endpoint: string, params?: Record<string, any>): Promise<T> {
@@ -82,61 +74,57 @@ class ApiClient {
   }
 }
 
-// You may want to pull the language setting from a global store or user profile
-let selectedLang = 'en'; // Can be switched to 'fr' dynamically
-
+let selectedLang = 'en';
 const apiClient = new ApiClient(selectedLang);
 
-/**
- * Set API language
- */
+/** Set API language for all requests */
 export const setApiLanguage = (lang: string) => {
   selectedLang = lang;
   apiClient.setLanguage(lang);
 };
 
 /**
- * Fetch all cards, with optional pagination and search
+ * FETCH CARDS - paginated, search, and sorted
+ * Returns: { data: Card[] }
  */
-export const fetchCards = async (params?: { page?: number; q?: string }) => {
-  // tcgdex.dev uses offset & limit for pagination; adjust if needed
-  const q = params?.q ? `?q=${encodeURIComponent(params.q)}` : '';
-  return await apiClient.get(`/cards${q}`);
+export const fetchCards = async (params?: {
+  page?: number;
+  pageSize?: number;
+  q?: string;
+  orderBy?: string;
+}): Promise<{ data: Card[] }> => {
+  const page = params?.page ?? 1;
+  const pageSize = params?.pageSize ?? 24;
+  const offset = (page - 1) * pageSize;
+  const query: Record<string, any> = {
+    offset,
+    limit: pageSize,
+    ...(params?.q ? { q: params.q } : {}),
+    ...(params?.orderBy ? { orderBy: params.orderBy } : {})
+    // Add more params if tcgdex.dev supports them
+  };
+  return await apiClient.get<{ data: Card[] }>('/cards', query);
 };
 
-/**
- * Fetch a single card by its ID
- */
-export const fetchCardById = async (id: string) => {
-  return await apiClient.get(`/cards/${id}`);
+/** Fetch a single card by ID */
+export const fetchCardById = async (id: string): Promise<Card> => {
+  return await apiClient.get<Card>(`/cards/${id}`);
 };
 
-/**
- * Fetch all sets
- */
-export const fetchSets = async () => {
-  return await apiClient.get('/sets');
+/** Fetch all sets */
+export const fetchSets = async (): Promise<{ data: SetBrief[] }> => {
+  return await apiClient.get<{ data: SetBrief[] }>('/sets');
 };
 
-/**
- * Fetch a single set by its ID
- */
-export const fetchSetById = async (id: string) => {
-  return await apiClient.get(`/sets/${id}`);
+/** Fetch a single set by ID */
+export const fetchSetById = async (id: string): Promise<SetBrief> => {
+  return await apiClient.get<SetBrief>(`/sets/${id}`);
 };
 
-/**
- * Fetch cards from a specific set
- */
-export const fetchCardsFromSet = async (setId: string) => {
-  // tcgdex.dev returns cards-per-set via: /sets/:id/cards
-  return await apiClient.get(`/sets/${setId}/cards`);
+/** Fetch all cards from a specific set */
+export const fetchCardsFromSet = async (setId: string): Promise<{ data: Card[] }> => {
+  return await apiClient.get<{ data: Card[] }>(`/sets/${setId}/cards`);
 };
 
-/**
- * Build query string for tcgdex.dev (basic text search)
- * Note: tcgdex.dev query features may be less complex than pokemontcg.io
- */
-export const buildQuery = (search: string) => {
-  return search;
-};
+/** Utility to build search queries (can be replaced with more advanced tcgdex logic as needed) */
+export const buildQuery = (search: string) => search;

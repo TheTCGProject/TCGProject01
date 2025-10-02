@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { ErrorBoundary } from './ErrorBoundary';
 
 // Define help topics as sections with arrays of topics
