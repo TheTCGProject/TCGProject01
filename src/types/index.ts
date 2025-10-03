@@ -1,228 +1,295 @@
-// src/types/index.ts
+/**
+ * TypeScript type definitions for Pokemon TCG application
+ * Defines interfaces for cards, sets, decks, and API responses
+ */
 
-// Types for legal and series info
-export interface SetLegal {
-  standard?: boolean;
-  expanded?: boolean;
-}
-
-export interface SerieBrief {
+// Pokemon Card Types
+export interface PokemonCard {
+  /** Unique card identifier */
   id: string;
+  /** Card name */
   name: string;
-}
-
-export interface SetBrief {
-  id: string;
-  name: string;
-  logo?: string;
-  symbol?: string;
-  serie?: SerieBrief;
-  cardCount?: {
-    total?: number;
-    official?: number;
-    reverse?: number;
-    holo?: number;
-    firstEd?: number;
-  };
-  tcgOnline?: string;
-  releaseDate?: string;
-  legal?: SetLegal;
-}
-
-/** TCGplayer price structure for card variants */
-export interface TCGPlayerPriceVariant {
-  lowPrice?: number;
-  midPrice?: number;
-  highPrice?: number;
-  marketPrice?: number;
-  directLowPrice?: number;
-}
-
-/** Cardmarket price structure */
-export interface CardMarketPriceVariant {
-  avg?: number;
-  low?: number;
-  trend?: number;
-  avg1?: number;
-  avg7?: number;
-  avg30?: number;
-  avg_holo?: number;
-  low_holo?: number;
-  trend_holo?: number;
-  avg1_holo?: number;
-  avg7_holo?: number;
-  avg30_holo?: number;
-}
-
-/** All pricing info attached to a card */
-export interface Pricing {
-  tcgplayer?: {
-    updated: number;
-    unit: number;
-    normal?: TCGPlayerPriceVariant;
-    holofoil?: TCGPlayerPriceVariant;
-    'reverse-holofoil'?: TCGPlayerPriceVariant;
-    '1st-edition'?: TCGPlayerPriceVariant;
-    '1st-edition-holofoil'?: TCGPlayerPriceVariant;
-    unlimited?: TCGPlayerPriceVariant;
-    'unlimited-holofoil'?: TCGPlayerPriceVariant;
-  };
-  cardmarket?: {
-    updated?: number;
-    unit?: number;
-    avg?: number;
-    low?: number;
-    trend?: number;
-    avg1?: number;
-    avg7?: number;
-    avg30?: number;
-    avg_holo?: number;
-    low_holo?: number;
-    trend_holo?: number;
-    avg1_holo?: number;
-    avg7_holo?: number;
-    avg30_holo?: number;
-  };
-}
-
-/** Card variants (normal, holo, reverse, 1st edition) */
-export interface Variants {
-  normal: boolean;
-  reverse: boolean;
-  holo: boolean;
-  firstEdition: boolean;
-}
-
-/** Booster pack object */
-export interface Booster {
-  id: string;
-  name: string;
-  logo?: string;
-  artwork_front?: string;
-  artwork_back?: string;
-}
-
-/** Universal Card object for tcgdex.dev */
-export interface Card {
-  id: string;                 // global card ID, e.g. "swsh3-136"
-  localId: string | number;   // number within set
-  name: string;
-  image?: string;
-  category: 'Pokemon' | 'Trainer' | 'Energy';
-  illustrator?: string;
-  rarity?: string;
-  set: SetBrief;
-  variants: Variants;
-  boosters?: Booster[];
-  pricing?: Pricing;
-  updated: string; // ISO date string
-
-  // Pokémon-specific fields
-  dexId?: number[];           // National Dex numbers
-  hp?: number;
+  /** Main card type (Pokémon, Trainer, Energy) */
+  supertype: string;
+  /** Specific card subtypes */
+  subtypes: string[];
+  /** Hit points (for Pokémon cards) */
+  hp?: string;
+  /** Energy types (for Pokémon cards) */
   types?: string[];
-  evolveFrom?: string;
-  description?: string;
-  level?: string;
-  stage?: string;
-  suffix?: string;
-  item?: {
-    name: string;
-    effect: string;
-  };
-  abilities?: Ability[];
+  /** Previous evolution stage */
+  evolvesFrom?: string;
+  /** Next evolution stages */
+  evolvesTo?: string[];
+  /** Special rules text */
+  rules?: string[];
+  /** Available attacks */
   attacks?: Attack[];
+  /** Weakness information */
   weaknesses?: Weakness[];
+  /** Resistance information */
   resistances?: Resistance[];
-  retreat?: number;
-
-  // Trainer/Energy-specific fields
-  effect?: string;
-  trainerType?: string;
-  energyType?: string;
+  /** Retreat cost energy symbols */
+  retreatCost?: string[];
+  /** Numeric retreat cost */
+  convertedRetreatCost?: number;
+  /** Set information */
+  set: Set;
+  /** Card number within set */
+  number: string;
+  /** Artist name */
+  artist?: string;
+  /** Card rarity */
+  rarity?: string;
+  /** National Pokédex numbers */
+  nationalPokedexNumbers?: number[];
+  /** Format legality information */
+  legalities: Legalities;
+  /** Card images */
+  images: CardImages;
+  /** TCGPlayer pricing data */
+  tcgplayer?: TcgPlayer;
+  /** CardMarket pricing data */
+  cardmarket?: CardMarket;
 }
 
-/** Pokémon attack */
-export interface Attack {
+/**
+ * Pokemon attack information
+ */
+interface Attack {
+  /** Attack name */
   name: string;
+  /** Energy cost symbols */
   cost: string[];
+  /** Numeric energy cost */
+  convertedEnergyCost: number;
+  /** Damage output */
   damage: string;
-  effect?: string;
+  /** Attack description */
+  text: string;
 }
 
-/** Pokémon ability */
-export interface Ability {
-  name: string;
-  effect: string;
+/**
+ * Weakness information
+ */
+interface Weakness {
+  /** Energy type */
   type: string;
-}
-
-/** Weakness */
-export interface Weakness {
-  type: string;
+  /** Weakness multiplier */
   value: string;
 }
 
-/** Resistance */
-export interface Resistance {
+/**
+ * Resistance information
+ */
+interface Resistance {
+  /** Energy type */
   type: string;
+  /** Resistance reduction */
   value: string;
 }
 
-/** Wishlist item */
-export interface WishlistCard {
-  cardId: string;
-  card: Card;
-  dateAdded: string;
-}
-
-/** Deck structure (if used in your app) */
-export interface Deck {
+/**
+ * Pokemon TCG set information
+ */
+interface Set {
+  /** Unique set identifier */
   id: string;
+  /** Set name */
   name: string;
-  description: string;
-  format: 'standard' | 'expanded' | 'unlimited' | 'custom';
-  cards: DeckCard[];
-  createdAt: string;
+  /** Series name */
+  series: string;
+  /** Printed total on cards */
+  printedTotal: number;
+  /** Actual total cards in set */
+  total: number;
+  /** Format legality */
+  legalities: Legalities;
+  /** PTCGO/PTCGL code */
+  ptcgoCode?: string;
+  /** Release date */
+  releaseDate: string;
+  /** Last update timestamp */
   updatedAt: string;
+  /** Set images */
+  images: SetImages;
+}
+
+/**
+ * Format legality information
+ */
+interface Legalities {
+  unlimited?: string;
+  standard?: string;
+  expanded?: string;
+}
+
+/**
+ * Card image URLs
+ */
+interface CardImages {
+  /** Small image URL */
+  small: string;
+  /** Large/high-res image URL */
+  large: string;
+}
+
+/**
+ * Set image URLs
+ */
+interface SetImages {
+  /** Set symbol URL */
+  symbol: string;
+  /** Set logo URL */
+  logo: string;
+}
+
+/**
+ * TCGPlayer pricing information
+ */
+interface TcgPlayer {
+  /** TCGPlayer product URL */
+  url: string;
+  /** Last price update */
+  updatedAt: string;
+  /** Price data by variant */
+  prices: {
+    [key: string]: {
+      low: number;
+      mid: number;
+      high: number;
+      market: number;
+      directLow: number;
+    };
+  };
+}
+
+/**
+ * CardMarket pricing information
+ */
+interface CardMarket {
+  /** CardMarket product URL */
+  url: string;
+  /** Last price update */
+  updatedAt: string;
+  /** Price data by variant */
+  prices: {
+    [key: string]: number;
+  };
+}
+
+// Deck Types
+
+/**
+ * User deck information
+ */
+export interface Deck {
+  /** Unique deck identifier */
+  id: string;
+  /** Deck name */
+  name: string;
+  /** Deck description */
+  description: string;
+  /** Tournament format */
+  format: 'standard' | 'expanded' | 'unlimited' | 'custom';
+  /** Cards in the deck */
+  cards: DeckCard[];
+  /** Creation timestamp */
+  createdAt: string;
+  /** Last update timestamp */
+  updatedAt: string;
+  /** Deck author ID */
   authorId?: string;
+  /** Deck author name */
   authorName?: string;
+  /** Whether deck is publicly visible */
   isPublic: boolean;
 }
 
-export interface DeckCard {
+/**
+ * Card within a deck
+ */
+interface DeckCard {
+  /** Reference to card ID */
   cardId: string;
-  card: Card;
+  /** Full card data */
+  card: PokemonCard;
+  /** Number of copies in deck */
   quantity: number;
 }
 
-/** Badge/achievement types */
+// Wishlist Types
+
+/**
+ * Card in user's wishlist
+ */
+export interface WishlistCard {
+  /** Reference to card ID */
+  cardId: string;
+  /** Full card data */
+  card: PokemonCard;
+  /** Date when card was added to wishlist */
+  dateAdded: string;
+}
+
+// Badge System Types
+
+/**
+ * Achievement badge interface
+ */
 export interface Badge {
+  /** Unique badge identifier */
   id: string;
+  /** Badge display name */
   name: string;
+  /** Badge description */
   description: string;
+  /** Badge icon component */
   icon: React.ReactNode;
+  /** Badge category for organization */
   category: 'standard' | 'special';
+  /** Function to check if badge requirements are met */
   requirement: (stats: any) => boolean;
+  /** Background color class for badge display */
   color: string;
+  /** Optional function to get progress towards badge (0-100) */
   getRequirementProgress?: (stats: any) => number;
+  /** Optional function to format progress text */
   progressTextFormatter?: (stats: any) => string;
+  /** Optional rarity level for special badges */
   rarity?: 'common' | 'rare' | 'epic' | 'legendary';
+  /** Optional unlock date for tracking */
   unlockedAt?: string;
 }
 
+/**
+ * Badge progress information
+ */
 export interface BadgeProgress {
+  /** Badge reference */
   badge: Badge;
+  /** Current progress percentage (0-100) */
   progress: number;
+  /** Whether badge is unlocked */
   isUnlocked: boolean;
+  /** Formatted progress text */
   progressText: string;
 }
 
-/** Generic paged API response */
+// API Response Types
+
+/**
+ * Generic API response wrapper
+ */
 export interface ApiResponse<T> {
+  /** Response data */
   data: T;
+  /** Current page (for paginated responses) */
   page?: number;
+  /** Items per page */
   pageSize?: number;
+  /** Items in current page */
   count?: number;
+  /** Total items across all pages */
   totalCount?: number;
 }

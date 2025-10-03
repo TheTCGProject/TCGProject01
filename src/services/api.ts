@@ -1,51 +1,50 @@
-import { SetBrief, Card } from '../types';
+/**
+ * Pokemon TCG API service
+ * Handles all API communication with the Pokemon TCG API
+ */
 
-/** Fallback image for missing card/set images */
-export const FALLBACK_IMAGE = 'https://tcgdex.dev/static/media/pokeball.c1eb8943.png';
+/**
+ * Fallback image URL for when card images fail to load
+ */
+export const FALLBACK_IMAGE = 'https://images.pokemontcg.io/swsh45/1_hires.png';
 
-/** Ensure all image URLs are HTTPS for CDN security */
-const ensureHttps = (url?: string): string => {
+/**
+ * Ensure URLs use HTTPS protocol for security
+ */
+const ensureHttps = (url: string): string => {
   if (!url) return '';
   return url.replace(/^http:\/\//i, 'https://');
 };
 
-/** Globally upgrade image/image props for Card or Set responses */
-const transformImageUrls = <T extends Record<string, any>>(item: T): T => {
-  const obj = item as any;
-  if ('image' in obj && obj.image) {
-    obj.image = ensureHttps(obj.image);
+/**
+ * Transform API response data to ensure HTTPS URLs
+ */
+const transformImageUrls = (item: any) => {
+  // Transform card images
+  if (item.images) {
+    item.images.small = ensureHttps(item.images.small);
+    item.images.large = ensureHttps(item.images.large);
   }
-  if ('set' in obj && obj.set) {
-    if ('logo' in obj.set && obj.set.logo) obj.set.logo = ensureHttps(obj.set.logo);
-    if ('symbol' in obj.set && obj.set.symbol) obj.set.symbol = ensureHttps(obj.set.symbol);
+  
+  // Transform set images
+  if (item.set?.images) {
+    item.set.images.symbol = ensureHttps(item.set.images.symbol);
+    item.set.images.logo = ensureHttps(item.set.images.logo);
   }
-  if ('logo' in obj && obj.logo) {
-    obj.logo = ensureHttps(obj.logo);
-  }
-  if ('symbol' in obj && obj.symbol) {
-    obj.symbol = ensureHttps(obj.symbol);
-  }
-  return obj;
+  
+  return item;
 };
 
-/** API client for tcgdex.dev */
+/**
+ * Simple HTTP client using fetch instead of axios
+ */
 class ApiClient {
-  private baseURL = 'https://tcgdex.dev/api/v2';
-  private lang: string;
+  private baseURL = 'https://api.pokemontcg.io/v2';
+  private apiKey = import.meta.env.VITE_POKEMON_TCG_API_KEY;
 
-  constructor(lang: string = 'en') {
-    this.lang = lang;
-  }
-
-  setLanguage(lang: string) {
-    this.lang = lang;
-  }
-
-  private async request<T>(
-    endpoint: string,
-    params?: Record<string, any>
-  ): Promise<T> {
-    const url = new URL(`${this.baseURL}/${this.lang}${endpoint}`);
+  private async request<T>(endpoint: string, params?: Record<string, any>): Promise<T> {
+    const url = new URL(`${this.baseURL}${endpoint}`);
+    
     if (params) {
       Object.entries(params).forEach(([key, value]) => {
         if (value !== undefined && value !== null && value !== '') {
@@ -53,20 +52,41 @@ class ApiClient {
         }
       });
     }
-    const res = await fetch(url.toString());
-    if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-    const data = await res.json();
-    // Transform images everywhere
-    if (Array.isArray(data)) {
-      return data.map(transformImageUrls) as any as T;
-    } else if (typeof data === 'object' && data !== null) {
-      // If paginated (object with data), fix images in array
-      if ('data' in data && Array.isArray(data.data)) {
-        data.data = data.data.map(transformImageUrls);
-      }
-      return transformImageUrls(data) as T;
+
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+
+    if (this.apiKey) {
+      headers['X-Api-Key'] = this.apiKey;
     }
-    return data;
+
+    try {
+      const response = await fetch(url.toString(), { headers });
+      
+      if (!response.ok) {
+        if (response.status === 401 || response.status === 403) {
+          console.error('API Key error. Please check your Pokemon TCG API key.');
+        }
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      
+      // Transform image URLs to use HTTPS
+      if (data?.data) {
+        if (Array.isArray(data.data)) {
+          data.data = data.data.map(transformImageUrls);
+        } else {
+          data.data = transformImageUrls(data.data);
+        }
+      }
+
+      return data;
+    } catch (error) {
+      console.error('API request failed:', error);
+      throw error;
+    }
   }
 
   async get<T>(endpoint: string, params?: Record<string, any>): Promise<T> {
@@ -74,57 +94,115 @@ class ApiClient {
   }
 }
 
-let selectedLang = 'en';
-const apiClient = new ApiClient(selectedLang);
-
-/** Set API language for all requests */
-export const setApiLanguage = (lang: string) => {
-  selectedLang = lang;
-  apiClient.setLanguage(lang);
-};
+const apiClient = new ApiClient();
 
 /**
- * FETCH CARDS - paginated, search, and sorted
- * Returns: { data: Card[] }
+ * Fetch cards with various filters and pagination
  */
-export const fetchCards = async (params?: {
+export const fetchCards = async (params: {
   page?: number;
   pageSize?: number;
   q?: string;
   orderBy?: string;
-}): Promise<{ data: Card[] }> => {
-  const page = params?.page ?? 1;
-  const pageSize = params?.pageSize ?? 24;
-  const offset = (page - 1) * pageSize;
-  const query: Record<string, any> = {
-    offset,
-    limit: pageSize,
-    ...(params?.q ? { q: params.q } : {}),
-    ...(params?.orderBy ? { orderBy: params.orderBy } : {})
-    // Add more params if tcgdex.dev supports them
+}) => {
+  return apiClient.get('/cards', params);
+};
+
+/**
+ * Fetch a single card by its unique ID
+ */
+export const fetchCardById = async (id: string) => {
+  const response = await apiClient.get<{ data: any }>(`/cards/${id}`);
+  return response.data;
+};
+
+/**
+ * Fetch all available sets
+ */
+export const fetchSets = async () => {
+  return apiClient.get('/sets');
+};
+
+/**
+ * Fetch a single set by its ID
+ */
+export const fetchSetById = async (id: string) => {
+  const response = await apiClient.get<{ data: any }>(`/sets/${id}`);
+  return response.data;
+};
+
+/**
+ * Fetch cards from a specific set with pagination support
+ */
+export const fetchCardsFromSet = async (setId: string, params?: {
+  page?: number;
+  pageSize?: number;
+  orderBy?: string;
+}) => {
+  return apiClient.get('/cards', {
+    q: `set.id:${setId}`,
+    orderBy: params?.orderBy || 'number',
+    page: params?.page || 1,
+    pageSize: params?.pageSize || 24,
+    ...params,
+  });
+};
+
+/**
+ * Get market price for a card variant from TCGPlayer data
+ */
+export const getCardPrice = (card: any, variant: string = 'normal'): number => {
+  if (!card.tcgplayer?.prices) return 0;
+  
+  // Map internal variant names to TCGPlayer price keys
+  const priceKeyMap: Record<string, string> = {
+    'regular': 'normal',
+    'reverse-holo': 'reverseHolofoil',
+    'holo': 'holofoil',
+    'full-art': 'normal', // Fallback to normal for special variants
+    'alt-art': 'normal',
+    'rainbow': 'normal',
+    'gold': 'normal',
+    'secret': 'normal',
   };
-  return await apiClient.get<{ data: Card[] }>('/cards', query);
+  
+  const priceKey = priceKeyMap[variant] || 'normal';
+  const priceData = card.tcgplayer.prices[priceKey];
+  
+  if (priceData) {
+    // Prefer market price, fallback to mid, then low
+    return priceData.market || priceData.mid || priceData.low || 0;
+  }
+  
+  // Fallback to first available price if specific variant not found
+  const firstPrice = Object.values(card.tcgplayer.prices)[0] as any;
+  return firstPrice?.market || firstPrice?.mid || firstPrice?.low || 0;
 };
 
-/** Fetch a single card by ID */
-export const fetchCardById = async (id: string): Promise<Card> => {
-  return await apiClient.get<Card>(`/cards/${id}`);
-};
+/**
+ * Build search query string from filter object
+ */
+export const buildQuery = (filters: Record<string, any>): string => {
+  const queries: string[] = [];
 
-/** Fetch all sets */
-export const fetchSets = async (): Promise<{ data: SetBrief[] }> => {
-  return await apiClient.get<{ data: SetBrief[] }>('/sets');
-};
+  Object.entries(filters).forEach(([key, value]) => {
+    if (value === undefined || value === null || value === '') return;
 
-/** Fetch a single set by ID */
-export const fetchSetById = async (id: string): Promise<SetBrief> => {
-  return await apiClient.get<SetBrief>(`/sets/${id}`);
-};
+    if (Array.isArray(value)) {
+      if (value.length === 0) return;
+      
+      // Create OR query for array values
+      const arrayQuery = value.map(v => `${key}:"${v}"`).join(' OR ');
+      if (arrayQuery) queries.push(`(${arrayQuery})`);
+    } else if (typeof value === 'object') {
+      // Handle range queries (min/max)
+      if (value.min !== undefined) queries.push(`${key}:>=${value.min}`);
+      if (value.max !== undefined) queries.push(`${key}:<=${value.max}`);
+    } else {
+      // Handle simple string/number values
+      queries.push(`${key}:"${value}"`);
+    }
+  });
 
-/** Fetch all cards from a specific set */
-export const fetchCardsFromSet = async (setId: string): Promise<{ data: Card[] }> => {
-  return await apiClient.get<{ data: Card[] }>(`/sets/${setId}/cards`);
+  return queries.join(' ');
 };
-
-/** Utility to build search queries (can be replaced with more advanced tcgdex logic as needed) */
-export const buildQuery = (search: string) => search;

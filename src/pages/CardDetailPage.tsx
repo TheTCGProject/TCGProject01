@@ -1,37 +1,29 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { fetchCardById, fetchCardsFromSet } from '../services/api';
+import { fetchCardById, fetchCardsFromSet, getCardPrice } from '../services/api';
 import { ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react';
 import Button from '../components/ui/Button';
 import { useDeckStore } from '../stores/deckStore';
 import { useCollectionStore } from '../stores/collectionStore';
+import { useSimilarPrintings } from '../hooks/useSimilarPrintings';
 import { cn } from '../utils/cn';
+
+// Import new components
 import CardInfo from '../components/card/CardInfo';
 import CardCollection from '../components/card/CardCollection';
 import CardMarket from '../components/card/CardMarket';
-import { Card } from '../types';
-import { isLegal } from '../utils/cardLegality';
 
-const VARIANT_OPTIONS = [
-  { id: 'normal', name: 'Normal' },
-  { id: 'reverse-holo', name: 'Reverse Holo' },
-  { id: 'holofoil', name: 'Holofoil' },
-  { id: 'full-art', name: 'Full Art' },
-  { id: 'alt-art', name: 'Alt Art' },
-  { id: 'rainbow', name: 'Rainbow Rare' },
-  { id: 'gold', name: 'Gold Rare' },
-  { id: 'secret', name: 'Secret Rare' }
-];
-
-const CardDetailPage: React.FC = () => {
+/**
+ * Card Detail Page Component
+ * Displays comprehensive information about a specific Pokemon card
+ * Includes tabs for card info, collection tracking, and market data
+ */
+const CardDetailPage = () => {
   const [activeTab, setActiveTab] = useState<'info' | 'collection' | 'market'>('info');
-  const { id: cardId } = useParams<{ id: string }>();
+  const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const searchParams = new URLSearchParams(location.search);
-  const setId = searchParams.get('setId');
-
   const { addCardToDeck } = useDeckStore();
   const { 
     addToCollection, 
@@ -40,63 +32,114 @@ const CardDetailPage: React.FC = () => {
     getCardQuantity, 
     getCardVariants 
   } = useCollectionStore();
-
-  // Fetch card data
-  const { data: card, isLoading: isCardLoading } = useQuery<Card>({
-    queryKey: ['card', cardId],
-    queryFn: () => fetchCardById(cardId!),
-    enabled: !!cardId,
+  
+  // Get setId from URL query params for collection context
+  const searchParams = new URLSearchParams(location.search);
+  const setId = searchParams.get('setId');
+  
+  // Fetch current card data
+  const { data: card, isLoading: isCardLoading } = useQuery({
+    queryKey: ['card', id],
+    queryFn: () => fetchCardById(id!),
+    enabled: !!id,
   });
 
-  // Fetch all cards in set for navigation
-  const { data: setCardsData } = useQuery<{ data: Card[] }>({
-    queryKey: ['set-cards', card?.set.id],
-    queryFn: () => card?.set.id ? fetchCardsFromSet(card.set.id) : Promise.resolve({ data: [] }),
+  // Fetch true reprints of the current card (pass the full card object)
+  const { data: trueReprints } = useSimilarPrintings(
+    card?.name || '',
+    card?.id || '',
+    card?.set.id || '',
+    card // Pass the full card object for comparison
+  );
+
+  // Fetch all cards in the set for navigation
+  const { data: setCards } = useQuery({
+    queryKey: ['set-cards-navigation', card?.set.id],
+    queryFn: () => fetchCardsFromSet(card!.set.id),
     enabled: !!card?.set.id,
   });
 
-  // Collection tracking
-  const cardVariants = setId && card ? getCardVariants(setId, card.id) : {};
+  // Calculate navigation indices
+  const currentIndex = setCards?.data.findIndex(c => c.id === id) ?? -1;
+  const previousCard = currentIndex > 0 ? setCards?.data[currentIndex - 1] : null;
+  const nextCard = currentIndex < (setCards?.data?.length ?? 0) - 1 ? setCards?.data[currentIndex + 1] : null;
 
-  // Filter available variants based on tcgdex card's actual field presence
-  const availableVariants = VARIANT_OPTIONS.filter(v => {
-    if (!card?.variants) return false;
-    if (v.id === 'normal') return !!card.variants.normal;
-    if (v.id === 'holofoil') return !!card.variants.holo;
-    if (v.id === 'reverse-holo') return !!card.variants.reverse;
-    if (v.id === 'firstEdition') return !!card.variants.firstEdition;
-    return true;  // Show other types, can be customized
+  // Get card variants for collection tracking
+  const cardVariants = setId && card ? getCardVariants(setId, id!) : {};
+  
+  // Define available variants based on card rarity and type
+  const availableVariants = [
+    { id: 'regular', name: 'Normal' },
+    { id: 'reverse-holo', name: 'Reverse Holo' },
+    { id: 'holo', name: 'Holo' },
+    { id: 'full-art', name: 'Full Art' },
+    { id: 'alt-art', name: 'Alt Art' },
+    { id: 'rainbow', name: 'Rainbow Rare' },
+    { id: 'gold', name: 'Gold Rare' },
+    { id: 'secret', name: 'Secret Rare' }
+  ].filter(variant => {
+    if (!card?.rarity) return false;
+    
+    // Filter variants based on card rarity
+    if (card.rarity === 'Common' || card.rarity === 'Uncommon') {
+      return ['regular', 'reverse-holo'].includes(variant.id);
+    }
+    
+    if (card.rarity === 'Rare') {
+      return ['regular', 'reverse-holo', 'holo'].includes(variant.id);
+    }
+
+    // Special illustration rares should only show as holo
+    if (card.rarity === 'Illustration Rare' || card.rarity === 'Special Illustration Rare') {
+      return ['holo'].includes(variant.id);
+    }
+    
+    // Other rarities exclude reverse holo
+    return variant.id !== 'reverse-holo';
   });
 
-  // Pagination logic for set navigation
-  const cardsInSet = setCardsData?.data ?? [];
-  const currentIndex = cardsInSet.findIndex(c => c.id === cardId);
-  const previousCard = currentIndex > 0 ? cardsInSet[currentIndex - 1] : null;
-  const nextCard = currentIndex < cardsInSet.length - 1 ? cardsInSet[currentIndex + 1] : null;
-
-  // Handle quantity change for collection tracking
+  /**
+   * Handle collection quantity changes
+   */
   const handleQuantityChange = (variantId: string, newQuantity: number) => {
     if (!setId || !card) return;
-    const currentQty = getCardQuantity(setId, card.id, variantId);
+
     if (newQuantity <= 0) {
-      removeFromCollection(setId, card.id, variantId, currentQty);
-    } else if (currentQty === 0) {
-      addToCollection(setId, card, variantId, newQuantity);
+      removeFromCollection(setId, card.id, variantId, getCardQuantity(setId, card.id, variantId));
     } else {
-      updateCardQuantity(setId, card.id, variantId, newQuantity);
+      const currentQuantity = getCardQuantity(setId, card.id, variantId);
+      if (currentQuantity === 0) {
+        addToCollection(setId, card, variantId, newQuantity);
+      } else {
+        updateCardQuantity(setId, card.id, variantId, newQuantity);
+      }
+    }
+  };
+  
+  /**
+   * Navigate back to previous page
+   */
+  const handleGoBack = () => {
+    navigate(-1);
+  };
+  
+  /**
+   * Add card to a specific deck
+   */
+  const handleAddToDeck = (deckId: string) => {
+    if (card) {
+      addCardToDeck(deckId, card);
     }
   };
 
-  const handleGoBack = () => navigate(-1);
-
-  const handleAddToDeck = (deckId: string) => {
-    if (card) addCardToDeck(deckId, card);
+  /**
+   * Navigate to another card with set context preserved
+   */
+  const navigateToCard = (cardId: string) => {
+    navigate(`/cards/${cardId}${setId ? `?setId=${setId}` : ''}`);
   };
-
-  const navigateToCard = (cid: string) => {
-    navigate(`/cards/${cid}${setId ? `?setId=${setId}` : ''}`);
-  };
-
+  
+  // Loading state
   if (isCardLoading) {
     return (
       <div className="container mx-auto px-4 py-12 flex justify-center">
@@ -104,7 +147,8 @@ const CardDetailPage: React.FC = () => {
       </div>
     );
   }
-
+  
+  // Error state - card not found
   if (!card) {
     return (
       <div className="container mx-auto px-4 py-12 text-center">
@@ -112,14 +156,16 @@ const CardDetailPage: React.FC = () => {
         <p className="text-slate-600 dark:text-slate-400 mb-6">
           We couldn't find the card you're looking for.
         </p>
-        <Button variant="primary" onClick={handleGoBack}>Go Back</Button>
+        <Button variant="primary" onClick={handleGoBack}>
+          Go Back
+        </Button>
       </div>
     );
   }
-
+  
   return (
     <div className="container mx-auto px-4 py-8">
-      {/* Nav Bar */}
+      {/* Back Navigation */}
       <Button 
         variant="ghost" 
         className="mb-6 flex items-center text-slate-700 dark:text-slate-300"
@@ -128,9 +174,10 @@ const CardDetailPage: React.FC = () => {
         <ArrowLeft className="mr-2 h-5 w-5" />
         Back
       </Button>
-
-      {/* Info Tabs */}
+      
+      {/* Main Card Content */}
       <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg overflow-hidden">
+        {/* Tab Headers */}
         <div className="flex border-b border-slate-200 dark:border-slate-700">
           <button
             onClick={() => setActiveTab('info')}
@@ -140,7 +187,9 @@ const CardDetailPage: React.FC = () => {
                 ? "bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400 border-b-2 border-primary-600 dark:border-primary-400"
                 : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-700"
             )}
-          >Card Info</button>
+          >
+            Card Info
+          </button>
           {setId && (
             <button
               onClick={() => setActiveTab('collection')}
@@ -150,7 +199,9 @@ const CardDetailPage: React.FC = () => {
                   ? "bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400 border-b-2 border-primary-600 dark:border-primary-400"
                   : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-700"
               )}
-            >Collection</button>
+            >
+              Collection
+            </button>
           )}
           <button
             onClick={() => setActiveTab('market')}
@@ -160,7 +211,9 @@ const CardDetailPage: React.FC = () => {
                 ? "bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400 border-b-2 border-primary-600 dark:border-primary-400"
                 : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-700"
             )}
-          >Market</button>
+          >
+            Market
+          </button>
         </div>
 
         {/* Tab Content */}
@@ -168,9 +221,11 @@ const CardDetailPage: React.FC = () => {
           {activeTab === 'info' && (
             <CardInfo 
               card={card}
-              onCardClick={navigateToCard}
+              similarPrintings={trueReprints}
+              onCardClick={(cardId) => navigate(`/cards/${cardId}`)}
             />
           )}
+
           {activeTab === 'collection' && setId && (
             <CardCollection
               card={card}
@@ -181,32 +236,29 @@ const CardDetailPage: React.FC = () => {
               getCardQuantity={getCardQuantity}
             />
           )}
+
           {activeTab === 'market' && (
             <CardMarket card={card} />
           )}
         </div>
-
-        {/* Card/set meta info */}
-        <div className="px-6 py-4 bg-slate-50 dark:bg-slate-700/50 border-t border-slate-200 dark:border-slate-700 flex flex-wrap justify-between text-xs text-slate-600 dark:text-slate-400">
-          {card.illustrator && (
-            <span>Illustrated by <span className="font-medium">{card.illustrator}</span></span>
-          )}
-          {card.set?.releaseDate && (
-            <span>Release Date: <span className="font-medium">{new Date(card.set.releaseDate).toLocaleDateString()}</span></span>
-          )}
-          <span>
-            <span className={`px-2 py-1 rounded ${isLegal(card, 'standard') ? "bg-green-200 dark:bg-green-700 text-green-900 dark:text-green-300" : "bg-red-100 dark:bg-red-700 text-red-900 dark:text-red-200"}`}>
-              Standard: {isLegal(card, 'standard') ? "Legal" : "Not Legal"}
-            </span>
-            <span className={`ml-2 px-2 py-1 rounded ${isLegal(card, 'expanded') ? "bg-blue-200 dark:bg-blue-700 text-blue-900 dark:text-blue-300" : "bg-red-100 dark:bg-red-700 text-red-900 dark:text-red-200"}`}>
-              Expanded: {isLegal(card, 'expanded') ? "Legal" : "Not Legal"}
-            </span>
-          </span>
+        
+        {/* Artist and Set Information Footer */}
+        <div className="px-6 py-4 bg-slate-50 dark:bg-slate-700/50 border-t border-slate-200 dark:border-slate-700">
+          <div className="flex flex-wrap justify-between text-sm text-slate-600 dark:text-slate-400">
+            <div>
+              {card.artist && (
+                <span>Illustrated by <span className="font-medium">{card.artist}</span></span>
+              )}
+            </div>
+            <div>
+              <span>Release Date: <span className="font-medium">{new Date(card.set.releaseDate).toLocaleDateString()}</span></span>
+            </div>
+          </div>
         </div>
       </div>
 
       {/* Card Navigation within Set */}
-      {cardsInSet.length > 0 && (
+      {setCards && (
         <div className="mt-8 flex justify-between items-center">
           <Button
             variant="outline"
@@ -215,18 +267,20 @@ const CardDetailPage: React.FC = () => {
             disabled={!previousCard}
           >
             <ChevronLeft size={20} />
-            Previous Card
+            <span>Previous Card</span>
           </Button>
+
           <span className="text-sm text-slate-600 dark:text-slate-400">
-            Card {currentIndex + 1} of {cardsInSet.length}
+            Card {currentIndex + 1} of {setCards?.data.length}
           </span>
+
           <Button
             variant="outline"
             className="flex items-center space-x-2"
             onClick={() => nextCard && navigateToCard(nextCard.id)}
             disabled={!nextCard}
           >
-            Next Card
+            <span>Next Card</span>
             <ChevronRight size={20} />
           </Button>
         </div>
