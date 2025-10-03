@@ -51,6 +51,22 @@ export interface PokemonCard {
   tcgplayer?: TcgPlayer;
   /** CardMarket pricing data */
   cardmarket?: CardMarket;
+  /** 
+   * Variant printing flags as per pokemontcg.io API
+   * https://docs.pokemontcg.io/api-reference/cards/card-object/
+   */
+  variants?: {
+    /** Standard print availability */
+    normal?: boolean;
+    /** Reverse Holo print availability */
+    reverseHolofoil?: boolean;
+    /** Holofoil print availability */
+    holofoil?: boolean;
+    /** 1st Edition normal print availability */
+    firstEditionNormal?: boolean;
+    /** 1st Edition Holo print availability */
+    firstEditionHolofoil?: boolean;
+  };
 }
 
 /**

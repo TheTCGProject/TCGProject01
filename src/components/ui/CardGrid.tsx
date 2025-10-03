@@ -1,6 +1,6 @@
 import React from 'react';
 import Card from './Card';
-import { PokemonCard } from '../../types';
+import type { PokemonCard } from '../../types';
 
 /**
  * CardGrid component props interface
@@ -36,7 +36,7 @@ interface CardGridProps {
  * CardGrid Component
  * Displays a responsive grid of Pokemon cards with CSS-based animations
  */
-const CardGrid = ({
+const CardGrid: React.FC<CardGridProps> = ({
   cards,
   onCardClick,
   selectedCardIds = [],
@@ -49,8 +49,7 @@ const CardGrid = ({
   collectionSetId,
   onDeckAction,
   showDeckControls = false
-}: CardGridProps) => {
-  
+}) => {
   // Handle empty state
   if (!cards || cards.length === 0) {
     return (
@@ -60,12 +59,12 @@ const CardGrid = ({
       </div>
     );
   }
-  
+
   return (
     <div className={`grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 ${className}`}>
       {cards.map((card, index) => (
-        <div 
-          key={card.id} 
+        <div
+          key={card.id}
           className="animate-fade-in"
           style={{ animationDelay: `${index * 50}ms` }}
         >
@@ -74,7 +73,7 @@ const CardGrid = ({
             onClick={() => onCardClick && onCardClick(card)}
             isSelected={selectedCardIds.includes(card.id)}
             showQuantity={showQuantity}
-            quantity={cardQuantities[card.id] || 1}
+            quantity={cardQuantities[card.id] ?? 1}
             showDetails={showDetails}
             showHoverControls={showHoverControls}
             showWishlistControls={showWishlistControls}

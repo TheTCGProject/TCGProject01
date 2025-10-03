@@ -1,30 +1,23 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ZoomIn, Plus, Edit, Download, Share2, Heart, Copy } from 'lucide-react';
+import { ZoomIn, Plus, Share2, Heart, Copy } from 'lucide-react';
 import { cn } from '../../utils/cn';
 import { getEnergySymbol, getEnergyTypeColor } from '../../utils/energyTypes';
 import { useDeckStore } from '../../stores/deckStore';
 import { useWishlistStore } from '../../stores/wishlistStore';
 import { useToast } from '../ui/Toast';
-import { PokemonCard } from '../../types';
+import type { PokemonCard } from '../../types';
 import Button from '../ui/Button';
 
-/**
- * CardInfo component props interface
- */
 interface CardInfoProps {
   /** Main card to display */
-  card: any;
+  card: PokemonCard;
   /** Similar printings from other sets */
   similarPrintings?: PokemonCard[];
   /** Card click handler */
   onCardClick?: (cardId: string) => void;
 }
 
-/**
- * Card Information Display Component
- * Shows detailed card information, abilities, attacks, and similar printings
- */
 const CardInfo: React.FC<CardInfoProps> = ({ card, similarPrintings, onCardClick }) => {
   const navigate = useNavigate();
   const { decks, addCardToDeck } = useDeckStore();
@@ -35,15 +28,11 @@ const CardInfo: React.FC<CardInfoProps> = ({ card, similarPrintings, onCardClick
   // Check if card is in wishlist
   const isInWishlist = isCardInWishlist(card.id);
 
-  /**
-   * Handle adding card to a specific deck
-   */
   const handleAddToDeck = (deckId: string) => {
     if (card) {
       const deck = decks.find(d => d.id === deckId);
       addCardToDeck(deckId, card);
-      
-      // Show success toast notification
+
       showToast(
         `Added "${card.name}" to "${deck?.name || 'deck'}"!`,
         'success',
@@ -58,9 +47,6 @@ const CardInfo: React.FC<CardInfoProps> = ({ card, similarPrintings, onCardClick
     }
   };
 
-  /**
-   * Handle wishlist toggle
-   */
   const handleWishlistToggle = () => {
     if (isInWishlist) {
       removeFromWishlist(card.id);
@@ -131,7 +117,7 @@ const CardInfo: React.FC<CardInfoProps> = ({ card, similarPrintings, onCardClick
                 <p className="font-semibold text-slate-900 dark:text-white">{card.supertype}</p>
               </div>
               
-              {card.subtypes && (
+              {card.subtypes && card.subtypes.length > 0 && (
                 <div>
                   <h3 className="text-sm font-medium text-slate-500 dark:text-slate-400">Subtype</h3>
                   <p className="font-semibold text-slate-900 dark:text-white">{card.subtypes.join(', ')}</p>
@@ -145,7 +131,7 @@ const CardInfo: React.FC<CardInfoProps> = ({ card, similarPrintings, onCardClick
                 </div>
               )}
               
-              {card.types && (
+              {card.types && card.types.length > 0 && (
                 <div>
                   <h3 className="text-sm font-medium text-slate-500 dark:text-slate-400">Types</h3>
                   <div className="flex flex-wrap gap-1 mt-1">
@@ -181,7 +167,7 @@ const CardInfo: React.FC<CardInfoProps> = ({ card, similarPrintings, onCardClick
                     <div className="flex justify-between items-center">
                       <h4 className="font-semibold text-slate-900 dark:text-white">{attack.name}</h4>
                       <div className="flex items-center">
-                        {attack.cost.map((cost, i) => (
+                        {(attack.cost ?? []).map((cost, i) => (
                           <div
                             key={i}
                             className={cn(
@@ -210,11 +196,11 @@ const CardInfo: React.FC<CardInfoProps> = ({ card, similarPrintings, onCardClick
           )}
 
           {/* Abilities Section */}
-          {card.abilities && card.abilities.length > 0 && (
+          {(card as any).abilities && (card as any).abilities.length > 0 && (
             <div>
               <h3 className="text-lg font-medium text-slate-900 dark:text-white mb-2">Abilities</h3>
               <div className="space-y-3">
-                {card.abilities.map((ability, index) => (
+                {(card as any).abilities.map((ability: any, index: number) => (
                   <div key={index} className="bg-slate-100 dark:bg-slate-700 p-3 rounded-lg">
                     <div className="flex justify-between items-center">
                       <h4 className="font-semibold text-slate-900 dark:text-white">{ability.name}</h4>

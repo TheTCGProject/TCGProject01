@@ -7,42 +7,26 @@ import { useSettingsStore } from '../../stores/settingsStore';
 import { useToast } from './Toast';
 import { FALLBACK_IMAGE } from '../../services/api';
 
-/**
- * Card component props interface
- */
+// Import PokemonCard type from your shared types module.
+import type { PokemonCard } from '../../types/index';
+
 interface CardProps {
-  /** Pokemon card data */
-  card: any;
-  /** Additional CSS classes */
+  card: PokemonCard;
   className?: string;
-  /** Whether the card is selected */
   isSelected?: boolean;
-  /** Click handler */
   onClick?: () => void;
-  /** Enable hover animations */
   hoverEffect?: boolean;
-  /** Show quantity badge */
   showQuantity?: boolean;
-  /** Quantity to display */
   quantity?: number;
-  /** Show detailed card information */
   showDetails?: boolean;
-  /** Set ID for collection tracking */
   collectionSetId?: string;
-  /** Show hover controls for collection management */
   showHoverControls?: boolean;
-  /** Show wishlist controls */
   showWishlistControls?: boolean;
-  /** Show deck controls for deck builder */
   showDeckControls?: boolean;
-  /** Deck action handler */
-  onDeckAction?: (card: any, action: 'add' | 'remove', quantity?: number) => void;
+  onDeckAction?: (card: PokemonCard, action: 'add' | 'remove', quantity?: number) => void;
 }
 
-/**
- * Modern Pokemon Card component with CSS-based animations
- */
-const Card = ({ 
+const Card: React.FC<CardProps> = ({
   card, 
   className, 
   isSelected, 
@@ -56,46 +40,48 @@ const Card = ({
   showWishlistControls = false,
   showDeckControls = false,
   onDeckAction
-}: CardProps) => {
-  // Collection management hooks
+}) => {
   const { collection, addToCollection, removeFromCollection } = useCollectionStore();
   const { addToWishlist, removeFromWishlist, isCardInWishlist } = useWishlistStore();
   const { collectionMode } = useSettingsStore();
   const { showToast } = useToast();
-  
-  // Image error handling state
-  const [imageError, setImageError] = React.useState(false);
-  
-  // Check if card is in user's collection
-  const isInCollection = collectionSetId && 
-    collection[collectionSetId]?.some(c => c.cardId === card.id);
 
-  // Check if card is in wishlist
+  const [imageError, setImageError] = React.useState(false);
+
+  // Is card in collection?
+  const isInCollection = React.useMemo(
+    () =>
+      Boolean(
+        collectionSetId &&
+        collection[collectionSetId]?.some(
+          (c: { cardId: string }) => c.cardId === card.id
+        )
+      ),
+    [collection, collectionSetId, card.id]
+  );
+
+  // Is card in wishlist?
   const isInWishlist = isCardInWishlist(card.id);
 
   /**
    * Get total quantity of this card in collection across all variants
    */
-  const getCardQuantity = () => {
+  const getCardQuantity = React.useCallback(() => {
     if (!collectionSetId) return 0;
-    const setCollection = collection[collectionSetId] || [];
-    return setCollection.reduce((total, c) => {
-      if (c.cardId === card.id) {
-        return total + c.quantity;
-      }
-      return total;
-    }, 0);
-  };
+    const setCollection = collection[collectionSetId] ?? [];
+    return setCollection.reduce(
+      (total: number, c: { cardId: string; quantity: number }) =>
+        c.cardId === card.id ? total + c.quantity : total,
+      0
+    );
+  }, [collection, collectionSetId, card.id]);
 
   const currentQuantity = getCardQuantity();
 
-  /**
-   * Handle collection add/remove actions
-   */
+  // Add/remove card from collection
   const handleCollectionClick = (e: React.MouseEvent, action: 'add' | 'remove') => {
     e.stopPropagation();
     if (!collectionSetId) return;
-
     if (action === 'add') {
       addToCollection(collectionSetId, card);
       showToast(`Added "${card.name}" to collection`, 'success', { duration: 2000 });
@@ -105,12 +91,9 @@ const Card = ({
     }
   };
 
-  /**
-   * Handle wishlist toggle
-   */
+  // Add/remove card from wishlist
   const handleWishlistClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    
     if (isInWishlist) {
       removeFromWishlist(card.id);
       showToast(`Removed "${card.name}" from wishlist`, 'info', { duration: 2000 });
@@ -120,15 +103,15 @@ const Card = ({
     }
   };
 
-  /**
-   * Handle deck actions for deck builder
-   */
-  const handleDeckAction = (e: React.MouseEvent, action: 'add' | 'remove', qty: number = 1) => {
+  // Deck builder actions
+  const handleDeckAction = (
+    e: React.MouseEvent,
+    action: 'add' | 'remove',
+    qty: number = 1
+  ) => {
     e.stopPropagation();
     if (onDeckAction) {
       onDeckAction(card, action, qty);
-      
-      // Show toast notification for deck actions
       if (action === 'add') {
         showToast(`Added "${card.name}" to deck`, 'success', { duration: 2000 });
       } else {
@@ -137,15 +120,28 @@ const Card = ({
     }
   };
 
-  /**
-   * Handle image loading errors with fallback
-   */
-  const handleImageError = () => {
-    setImageError(true);
-  };
+  // Fallback for broken card images
+  const handleImageError = () => setImageError(true);
 
-  // Apply grayscale effect based on collection mode and ownership
-  const shouldApplyGrayscale = collectionMode && collectionSetId && !isInCollection;
+  // Grayscale for collection mode if not owned
+  const shouldApplyGrayscale = Boolean(
+    collectionMode && collectionSetId && !isInCollection
+  );
+
+  // Extract a safe price from tcgplayer prices API
+  const getMarketPrice = (card: PokemonCard): string => {
+    if (
+      card.tcgplayer &&
+      card.tcgplayer.prices &&
+      typeof card.tcgplayer.prices === 'object'
+    ) {
+      const variant = Object.values(card.tcgplayer.prices)[0];
+      if (variant && typeof variant.market === 'number') {
+        return variant.market.toFixed(2);
+      }
+    }
+    return '—';
+  };
 
   return (
     <div
@@ -176,9 +172,9 @@ const Card = ({
       {/* Card image container */}
       <div className="aspect-[2.5/3.5] relative overflow-hidden bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900">
         {card.images?.small && (
-          <img 
+          <img
             src={imageError ? FALLBACK_IMAGE : card.images.small}
-            alt={card.name} 
+            alt={card.name}
             className={cn(
               "w-full h-full object-cover transition-all duration-300",
               shouldApplyGrayscale && "filter grayscale",
@@ -188,14 +184,14 @@ const Card = ({
             onError={handleImageError}
           />
         )}
-        
+
         {/* Quantity badge */}
-        {showQuantity && quantity > 1 && (
+        {showQuantity && quantity && quantity > 1 && (
           <div className="absolute top-3 left-3 bg-gray-900/80 backdrop-blur-sm text-white rounded-full w-7 h-7 flex items-center justify-center text-xs font-bold shadow-lg">
             {quantity}
           </div>
         )}
-        
+
         {/* Selection overlay */}
         {isSelected && (
           <div className="absolute inset-0 bg-secondary-500/20 backdrop-blur-[1px] pointer-events-none" />
@@ -206,24 +202,24 @@ const Card = ({
           <div className="absolute inset-0 bg-gray-900/10 pointer-events-none" />
         )}
 
-        {/* Deck controls for deck builder */}
+        {/* Deck controls */}
         {showDeckControls && (
           <div className="absolute bottom-0 left-0 right-0 bg-white/95 dark:bg-gray-800/95 backdrop-blur-md p-3 opacity-0 group-hover:opacity-100 transition-all duration-200 border-t border-gray-200/50 dark:border-gray-700/50">
             <div className="flex items-center justify-center gap-3">
               <button
-                onClick={(e) => handleDeckAction(e, 'remove')}
+                onClick={e => handleDeckAction(e, 'remove')}
                 className="w-8 h-8 rounded-full bg-error-500 hover:bg-error-600 text-white flex items-center justify-center transition-all duration-200 shadow-md hover:shadow-lg active:scale-95"
                 aria-label="Remove from deck"
               >
                 <Minus className="w-4 h-4" />
               </button>
-              
+
               <span className="min-w-[2.5rem] text-center font-bold text-gray-900 dark:text-white bg-gray-100 dark:bg-gray-700 px-3 py-1.5 rounded-lg text-sm shadow-sm">
                 {quantity}
               </span>
-              
+
               <button
-                onClick={(e) => handleDeckAction(e, 'add')}
+                onClick={e => handleDeckAction(e, 'add')}
                 className="w-8 h-8 rounded-full bg-success-500 hover:bg-success-600 text-white flex items-center justify-center transition-all duration-200 shadow-md hover:shadow-lg active:scale-95"
                 aria-label="Add to deck"
               >
@@ -237,7 +233,7 @@ const Card = ({
         {showHoverControls && collectionSetId && !showDeckControls && (
           <div className="absolute bottom-0 left-0 right-0 bg-white/95 dark:bg-gray-800/95 backdrop-blur-md p-3 rounded-b-2xl flex items-center justify-center gap-3 opacity-0 group-hover:opacity-100 transition-all duration-200 border-t border-gray-200/50 dark:border-gray-700/50">
             <button
-              onClick={(e) => handleCollectionClick(e, 'remove')}
+              onClick={e => handleCollectionClick(e, 'remove')}
               className={cn(
                 "w-8 h-8 rounded-full flex items-center justify-center transition-all duration-200 shadow-md hover:shadow-lg active:scale-95",
                 currentQuantity > 0
@@ -249,13 +245,13 @@ const Card = ({
             >
               <Minus className="w-4 h-4" />
             </button>
-            
+
             <span className="min-w-[2.5rem] text-center font-bold text-gray-900 dark:text-white bg-white dark:bg-gray-700 px-3 py-1.5 rounded-lg shadow-sm border border-gray-200 dark:border-gray-600">
               {currentQuantity}
             </span>
-            
+
             <button
-              onClick={(e) => handleCollectionClick(e, 'add')}
+              onClick={e => handleCollectionClick(e, 'add')}
               className="w-8 h-8 rounded-full bg-success-500 hover:bg-success-600 text-white flex items-center justify-center transition-all duration-200 shadow-md hover:shadow-lg active:scale-95"
               aria-label="Add to collection"
             >
@@ -300,15 +296,17 @@ const Card = ({
                 )}
               </div>
             </div>
-            
+
             {/* Collection controls (when not using hover controls) */}
             {!showHoverControls && !showDeckControls && collectionSetId && (
               <div className="flex space-x-1 ml-2">
                 <button
-                  onClick={(e) => handleCollectionClick(e, 'remove')}
+                  onClick={e => handleCollectionClick(e, 'remove')}
                   className={cn(
                     "p-1.5 rounded-lg transition-all duration-200 active:scale-95",
-                    isInCollection ? "text-error-500 hover:text-error-600 hover:bg-error-50 dark:hover:bg-error-900/20" : "text-gray-300 dark:text-gray-600"
+                    isInCollection
+                      ? "text-error-500 hover:text-error-600 hover:bg-error-50 dark:hover:bg-error-900/20"
+                      : "text-gray-300 dark:text-gray-600"
                   )}
                   disabled={!isInCollection}
                   aria-label="Remove from collection"
@@ -316,12 +314,14 @@ const Card = ({
                   <Minus className="w-4 h-4" />
                 </button>
                 <button
-                  onClick={(e) => handleCollectionClick(e, 'add')}
+                  onClick={e => handleCollectionClick(e, 'add')}
                   className={cn(
                     "p-1.5 rounded-lg transition-all duration-200 active:scale-95",
-                    !isInCollection ? "text-success-500 hover:text-success-600 hover:bg-success-50 dark:hover:bg-success-900/20" : "text-gray-300 dark:text-gray-600"
+                    !isInCollection
+                      ? "text-success-500 hover:text-success-600 hover:bg-success-50 dark:hover:bg-success-900/20"
+                      : "text-gray-300 dark:text-gray-600"
                   )}
-                  disabled={isInCollection}
+                  disabled={!!isInCollection}
                   aria-label="Add to collection"
                 >
                   <Plus className="w-4 h-4" />
@@ -345,14 +345,12 @@ const Card = ({
               </button>
             )}
           </div>
-          
+
           {/* Price display */}
-          {card.tcgplayer?.prices && (
-            <div className="flex items-center text-success-600 dark:text-success-400 font-semibold mt-2 text-sm">
-              <DollarSign className="w-3.5 h-3.5 mr-0.5" />
-              {Object.values(card.tcgplayer.prices)[0].market?.toFixed(2) || '—'}
-            </div>
-          )}
+          <div className="flex items-center text-success-600 dark:text-success-400 font-semibold mt-2 text-sm">
+            <DollarSign className="w-3.5 h-3.5 mr-0.5" />
+            {getMarketPrice(card)}
+          </div>
         </div>
       )}
     </div>
