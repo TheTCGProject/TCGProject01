@@ -10,8 +10,12 @@ import { SetDetails } from '../types';
 const SetDetailPage = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  // No need to select the whole collection or getSetProgress here
-  
+
+  // Always call hooks at the top level with a stable key.
+  // Move the collection selector here so it's invoked on every render and
+  // doesn't get skipped by early returns (prevents hook-order warnings).
+  const setCollection = useCollectionStore(state => state.collection[id ?? ""] || []);
+
   const [setDetails, setSetDetails] = useState<SetDetails | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -68,9 +72,6 @@ const SetDetailPage = () => {
       </div>
     );
   }
-
-  // Always call hooks at the top level with a stable key
-  const setCollection = useCollectionStore(state => state.collection[id ?? ""] || []);
 
   let uniqueCardsCollected = 0;
   let progress = 0;
