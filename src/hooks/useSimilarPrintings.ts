@@ -1,9 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
-import { fetchCards } from '../services/api';
 import { PokemonCard } from '../types';
+import { loadSets, loadCardSet } from '../utils/dataLoader';
 
 /**
- * Check if two cards are true reprints (functionally identical)
+ * Check if two cards ar      gcTime: 1000 * 60 * 60, // 1 hour true reprints (functionally identical)
  */
 const areCardsIdenticalReprints = (card1: PokemonCard, card2: PokemonCard): boolean => {
   // Must have the same name
@@ -139,17 +139,19 @@ export const useSimilarPrintings = (
       }
 
       try {
-        // Fetch cards with the same name
-        // Limit pageSize to prevent fetching excessively large datasets for popular cards
-        // with many printings. The client-side filtering for "true reprints" will operate
-        // on this limited set, which is sufficient for most use cases.
-        const response = await fetchCards({
-          q: `name:"${cardName}"`,
-          pageSize: 200, // Reasonable limit to balance performance and completeness
-        });
+        // Load all sets first
+        const sets = await loadSets();
+        let allCards: PokemonCard[] = [];
+
+        // Load cards from each set and find matching ones
+        for (const set of sets) {
+          const setCards = await loadCardSet(set.id);
+          const matchingCards = setCards.filter(card => card.name === cardName);
+          allCards = [...allCards, ...matchingCards];
+        }
 
         // Filter to only include true reprints
-        const trueReprints = response.data.filter((card) => {
+        const trueReprints = allCards.filter((card: PokemonCard) => {
           // Exclude the current card
           if (card.id === currentCardId) return false;
           
@@ -157,11 +159,11 @@ export const useSimilarPrintings = (
           if (card.set.id === currentSetId) return false;
           
           // Check if this is a true reprint
-          return areCardsIdenticalReprints(currentCard, card);
+          return currentCard ? areCardsIdenticalReprints(currentCard, card) : true;
         });
 
         // Sort by release date (newest first) and then by set name
-        return trueReprints.sort((a, b) => {
+        return trueReprints.sort((a: PokemonCard, b: PokemonCard) => {
           const dateA = new Date(a.set.releaseDate);
           const dateB = new Date(b.set.releaseDate);
           
@@ -178,6 +180,6 @@ export const useSimilarPrintings = (
     },
     enabled: !!(cardName && currentCardId && currentSetId && currentCard),
     staleTime: Infinity,
-    cacheTime: 1000 * 60 * 60, // 1 hour
+    gcTime: 1000 * 60 * 60 // 1 hour
   });
 };

@@ -17,8 +17,27 @@ export const loadCardSet = async (setId: string): Promise<Card[]> => {
   }
 
   try {
-    const cardSet = await import(`../data/cards/en/${setId}.json`)
-    cardSetCache[setId] = cardSet.default
+    const cardSet = await import(`../data/cards/en/${setId}.json`);
+    const allSets = await loadSets();
+    const setInfo = allSets.find(s => s.id === setId);
+    
+    if (setInfo) {
+      const cardsWithSetInfo = cardSet.default.map((card: Card) => ({
+        ...card,
+        set: {
+          id: setInfo.id,
+          name: setInfo.name,
+          releaseDate: setInfo.releaseDate,
+          printedTotal: setInfo.printedTotal,
+          total: setInfo.total,
+          images: setInfo.images
+        }
+      }));
+      cardSetCache[setId] = cardsWithSetInfo;
+      return cardsWithSetInfo;
+    }
+    
+    cardSetCache[setId] = cardSet.default;
     return cardSet.default
   } catch (error) {
     console.error(`Error loading card set ${setId}:`, error)
@@ -133,4 +152,66 @@ export const loadFilteredCards = async (
 export const searchAcrossLoadedSets = (searchFn: (card: Card) => boolean): Card[] => {
   const allLoadedCards = Object.values(cardSetCache).flat()
   return allLoadedCards.filter(searchFn)
+}
+
+/**
+ * Load a specific card by its ID
+ * This will check the cache first, then load the appropriate set if needed
+ * @param cardId The ID of the card to load
+ * @returns Promise containing the card data or null if not found
+ */
+export const loadCardById = async (cardId: string): Promise<Card | null> => {
+  // First check all cached sets
+  for (const [setId, cards] of Object.entries(cardSetCache)) {
+    const card = cards.find(c => c.id === cardId);
+    if (card) {
+      // Load set information for cached card
+      const allSets = await loadSets();
+      const set = allSets.find(s => s.id === setId);
+      if (set) {
+        return {
+          ...card,
+          set: {
+            id: set.id,
+            name: set.name,
+            releaseDate: set.releaseDate,
+            printedTotal: set.printedTotal,
+            total: set.total,
+            images: set.images
+          }
+        };
+      }
+      return card;
+    }
+  }
+
+  try {
+    // Load all sets to find which set contains this card
+    const allSets = await loadSets();
+    
+    // Try loading sets sequentially until we find the card
+    for (const set of allSets) {
+      const cards = await loadCardSet(set.id);
+      const card = cards.find(c => c.id === cardId);
+      if (card) {
+        // Make sure the set information is properly attached
+        return {
+          ...card,
+          set: {
+            id: set.id,
+            name: set.name,
+            releaseDate: set.releaseDate,
+            printedTotal: set.printedTotal,
+            total: set.total,
+            images: set.images
+          }
+        };
+      }
+    }
+
+    return null;
+  } catch (error) {
+    console.error(`Error loading card ${cardId}:`, error);
+    return null;
+  }
 }

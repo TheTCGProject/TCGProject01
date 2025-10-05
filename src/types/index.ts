@@ -37,40 +37,54 @@ export interface Set {
 }
 
 export interface Card {
+  // Core card information
   id: string;
   name: string;
+  number: string;
   supertype: string;
   subtypes: string[];
+  
+  // Card text and flavor
+  flavorText?: string;
+  rules?: string[];
+  
+  // Pokemon-specific attributes
   hp?: string;
   types?: string[];
   evolvesFrom?: string;
   evolvesTo?: string[];
-  rules?: string[];
   attacks?: Attack[];
   weaknesses?: Weakness[];
   resistances?: Resistance[];
   retreatCost?: string[];
   convertedRetreatCost?: number;
-  number: string;
+  nationalPokedexNumbers?: number[];
+  
+  // Card abilities
+  abilities?: Array<{
+    name: string;
+    text: string;
+    type: string;
+  }>;
+
+  // Collection and printing details
   artist?: string;
   rarity?: string;
-  flavorText?: string;
-  nationalPokedexNumbers?: number[];
-  images: {
-    small: string;
-    large: string;
+  images: CardImages;
+  set: {
+    id: string;
+    name: string;
+    releaseDate: string;
+    printedTotal: number;
+    total: number;
+    images: {
+      symbol: string;
+      logo: string;
+    };
   };
-  tcgplayer?: {
-    url: string;
-    updatedAt: string;
-    prices: Record<string, {
-      low: number;
-      mid: number;
-      high: number;
-      market: number;
-      directLow: number;
-    }>;
-  };
+  
+  // Market information
+  tcgplayer?: TcgPlayer;
 }
 
 // Alias for compatibility
@@ -81,71 +95,9 @@ export interface SetDetails extends Set {
 }
 
 /**
- * Pokemon attack information
- */
-interface Attack {
-  /** Attack name */
-  name: string;
-  /** Energy cost symbols */
-  cost: string[];
-  /** Numeric energy cost */
-  convertedEnergyCost: number;
-  /** Damage output */
-  damage: string;
-  /** Attack description */
-  text: string;
-}
-
-/**
- * Weakness information
- */
-interface Weakness {
-  /** Energy type */
-  type: string;
-  /** Weakness multiplier */
-  value: string;
-}
-
-/**
- * Resistance information
- */
-interface Resistance {
-  /** Energy type */
-  type: string;
-  /** Resistance reduction */
-  value: string;
-}
-
-/**
- * Pokemon TCG set information
- */
-interface Set {
-  /** Unique set identifier */
-  id: string;
-  /** Set name */
-  name: string;
-  /** Series name */
-  series: string;
-  /** Printed total on cards */
-  printedTotal: number;
-  /** Actual total cards in set */
-  total: number;
-  /** Format legality */
-  legalities: Legalities;
-  /** PTCGO/PTCGL code */
-  ptcgoCode?: string;
-  /** Release date */
-  releaseDate: string;
-  /** Last update timestamp */
-  updatedAt: string;
-  /** Set images */
-  images: SetImages;
-}
-
-/**
  * Format legality information
  */
-interface Legalities {
+export interface Legalities {
   unlimited?: string;
   standard?: string;
   expanded?: string;
@@ -154,7 +106,7 @@ interface Legalities {
 /**
  * Card image URLs
  */
-interface CardImages {
+export interface CardImages {
   /** Small image URL */
   small: string;
   /** Large/high-res image URL */
@@ -164,7 +116,7 @@ interface CardImages {
 /**
  * Set image URLs
  */
-interface SetImages {
+export interface SetImages {
   /** Set symbol URL */
   symbol: string;
   /** Set logo URL */
@@ -174,7 +126,7 @@ interface SetImages {
 /**
  * TCGPlayer pricing information
  */
-interface TcgPlayer {
+export interface TcgPlayer {
   /** TCGPlayer product URL */
   url: string;
   /** Last price update */
@@ -188,20 +140,6 @@ interface TcgPlayer {
       market: number;
       directLow: number;
     };
-  };
-}
-
-/**
- * CardMarket pricing information
- */
-interface CardMarket {
-  /** CardMarket product URL */
-  url: string;
-  /** Last price update */
-  updatedAt: string;
-  /** Price data by variant */
-  prices: {
-    [key: string]: number;
   };
 }
 

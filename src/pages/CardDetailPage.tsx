@@ -1,10 +1,9 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { fetchCardById, fetchCardsFromSet, getCardPrice } from '../services/api';
+import { loadCardById, loadSetDetails } from '../utils/dataLoader';
 import { ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react';
 import Button from '../components/ui/Button';
-import { useDeckStore } from '../stores/deckStore';
 import { useCollectionStore } from '../stores/collectionStore';
 import { useSimilarPrintings } from '../hooks/useSimilarPrintings';
 import { cn } from '../utils/cn';
@@ -24,7 +23,6 @@ const CardDetailPage = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const { addCardToDeck } = useDeckStore();
   const { 
     addToCollection, 
     removeFromCollection, 
@@ -37,35 +35,57 @@ const CardDetailPage = () => {
   const searchParams = new URLSearchParams(location.search);
   const setId = searchParams.get('setId');
   
-  // Fetch current card data
+  // Fetch current card data using local data loader
   const { data: card, isLoading: isCardLoading } = useQuery({
     queryKey: ['card', id],
-    queryFn: () => fetchCardById(id!),
+    queryFn: () => loadCardById(id!),
     enabled: !!id,
   });
 
-  // Fetch true reprints of the current card (pass the full card object)
+  // Fetch true reprints of the current card
   const { data: trueReprints } = useSimilarPrintings(
     card?.name || '',
     card?.id || '',
-    card?.set.id || '',
-    card // Pass the full card object for comparison
+    setId || '',
+    card || undefined
   );
 
   // Fetch all cards in the set for navigation
-  const { data: setCards } = useQuery({
-    queryKey: ['set-cards-navigation', card?.set.id],
-    queryFn: () => fetchCardsFromSet(card!.set.id),
-    enabled: !!card?.set.id,
+  const { data: setDetails } = useQuery({
+    queryKey: ['set-details', setId],
+    queryFn: () => loadSetDetails(setId!),
+    enabled: !!setId,
   });
 
   // Calculate navigation indices
-  const currentIndex = setCards?.data.findIndex(c => c.id === id) ?? -1;
-  const previousCard = currentIndex > 0 ? setCards?.data[currentIndex - 1] : null;
-  const nextCard = currentIndex < (setCards?.data?.length ?? 0) - 1 ? setCards?.data[currentIndex + 1] : null;
+  const cards = setDetails?.cards ?? [];
+  const currentIndex = cards.findIndex(c => c.id === id);
+  const previousCard = currentIndex > 0 ? cards[currentIndex - 1] : null;
+  const nextCard = currentIndex < cards.length - 1 ? cards[currentIndex + 1] : null;
+
+  // Handle loading and error states
+  if (isCardLoading) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary-600"></div>
+      </div>
+    );
+  }
+
+  if (!card) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen">
+        <h2 className="text-xl font-semibold mb-4">Card not found</h2>
+        <Button onClick={() => navigate(-1)}>
+          <ArrowLeft className="mr-2" size={16} />
+          Go Back
+        </Button>
+      </div>
+    );
+  }
 
   // Get card variants for collection tracking
-  const cardVariants = setId && card ? getCardVariants(setId, id!) : {};
+  const cardVariants = setId ? getCardVariants(setId, id!) : {};
   
   // Define available variants based on card rarity and type
   const availableVariants = [
@@ -126,11 +146,7 @@ const CardDetailPage = () => {
   /**
    * Add card to a specific deck
    */
-  const handleAddToDeck = (deckId: string) => {
-    if (card) {
-      addCardToDeck(deckId, card);
-    }
-  };
+  
 
   /**
    * Navigate to another card with set context preserved
@@ -251,14 +267,14 @@ const CardDetailPage = () => {
               )}
             </div>
             <div>
-              <span>Release Date: <span className="font-medium">{new Date(card.set.releaseDate).toLocaleDateString()}</span></span>
+              <span>Release Date: <span className="font-medium">{setDetails ? new Date(setDetails.releaseDate).toLocaleDateString() : 'Unknown'}</span></span>
             </div>
           </div>
         </div>
       </div>
 
       {/* Card Navigation within Set */}
-      {setCards && (
+      {cards.length > 0 && (
         <div className="mt-8 flex justify-between items-center">
           <Button
             variant="outline"
@@ -271,7 +287,7 @@ const CardDetailPage = () => {
           </Button>
 
           <span className="text-sm text-slate-600 dark:text-slate-400">
-            Card {currentIndex + 1} of {setCards?.data.length}
+            Card {currentIndex + 1} of {cards.length}
           </span>
 
           <Button
