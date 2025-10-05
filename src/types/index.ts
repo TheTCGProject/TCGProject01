@@ -1,72 +1,83 @@
-/**
- * TypeScript type definitions for Pokemon TCG application
- * Defines interfaces for cards, sets, decks, and API responses
- */
-
-// Pokemon Card Types
-export interface PokemonCard {
-  /** Unique card identifier */
-  id: string;
-  /** Card name */
+export interface Attack {
   name: string;
-  /** Main card type (Pokémon, Trainer, Energy) */
-  supertype: string;
-  /** Specific card subtypes */
-  subtypes: string[];
-  /** Hit points (for Pokémon cards) */
-  hp?: string;
-  /** Energy types (for Pokémon cards) */
-  types?: string[];
-  /** Previous evolution stage */
-  evolvesFrom?: string;
-  /** Next evolution stages */
-  evolvesTo?: string[];
-  /** Special rules text */
-  rules?: string[];
-  /** Available attacks */
-  attacks?: Attack[];
-  /** Weakness information */
-  weaknesses?: Weakness[];
-  /** Resistance information */
-  resistances?: Resistance[];
-  /** Retreat cost energy symbols */
-  retreatCost?: string[];
-  /** Numeric retreat cost */
-  convertedRetreatCost?: number;
-  /** Set information */
-  set: Set;
-  /** Card number within set */
-  number: string;
-  /** Artist name */
-  artist?: string;
-  /** Card rarity */
-  rarity?: string;
-  /** National Pokédex numbers */
-  nationalPokedexNumbers?: number[];
-  /** Format legality information */
-  legalities: Legalities;
-  /** Card images */
-  images: CardImages;
-  /** TCGPlayer pricing data */
-  tcgplayer?: TcgPlayer;
-  /** CardMarket pricing data */
-  cardmarket?: CardMarket;
-  /** 
-   * Variant printing flags as per pokemontcg.io API
-   * https://docs.pokemontcg.io/api-reference/cards/card-object/
-   */
-  variants?: {
-    /** Standard print availability */
-    normal?: boolean;
-    /** Reverse Holo print availability */
-    reverseHolofoil?: boolean;
-    /** Holofoil print availability */
-    holofoil?: boolean;
-    /** 1st Edition normal print availability */
-    firstEditionNormal?: boolean;
-    /** 1st Edition Holo print availability */
-    firstEditionHolofoil?: boolean;
+  cost: string[];
+  convertedEnergyCost: number;
+  damage: string;
+  text: string;
+}
+
+export interface Weakness {
+  type: string;
+  value: string;
+}
+
+export interface Resistance {
+  type: string;
+  value: string;
+}
+
+export interface Set {
+  id: string;
+  name: string;
+  series: string;
+  printedTotal: number;
+  total: number;
+  ptcgoCode?: string;
+  releaseDate: string;
+  updatedAt: string;
+  images: {
+    symbol: string;
+    logo: string;
   };
+  legalities: {
+    standard?: string;
+    expanded?: string;
+    unlimited?: string;
+  };
+}
+
+export interface Card {
+  id: string;
+  name: string;
+  supertype: string;
+  subtypes: string[];
+  hp?: string;
+  types?: string[];
+  evolvesFrom?: string;
+  evolvesTo?: string[];
+  rules?: string[];
+  attacks?: Attack[];
+  weaknesses?: Weakness[];
+  resistances?: Resistance[];
+  retreatCost?: string[];
+  convertedRetreatCost?: number;
+  number: string;
+  artist?: string;
+  rarity?: string;
+  flavorText?: string;
+  nationalPokedexNumbers?: number[];
+  images: {
+    small: string;
+    large: string;
+  };
+  tcgplayer?: {
+    url: string;
+    updatedAt: string;
+    prices: Record<string, {
+      low: number;
+      mid: number;
+      high: number;
+      market: number;
+      directLow: number;
+    }>;
+  };
+}
+
+// Alias for compatibility
+export type PokemonCard = Card;
+
+export interface SetDetails extends Set {
+  cards: Card[];
 }
 
 /**

@@ -27,15 +27,8 @@ export default defineConfig(({ mode }) => ({
           'react-vendor': ['react', 'react-dom'],
           'router': ['react-router-dom'],
           'query': ['@tanstack/react-query'],
-          'motion': ['framer-motion'],
           'ui': ['@radix-ui/react-dropdown-menu'],
           'stores': ['zustand'],
-          
-          // Separate large pages
-          'help': ['src/pages/HelpPage.tsx'],
-          'deck-builder': ['src/pages/DeckBuilderPage.tsx'],
-          'account': ['src/pages/AccountPage.tsx'],
-          'card-detail': ['src/pages/CardDetailPage.tsx'],
         },
       },
     },
@@ -43,13 +36,7 @@ export default defineConfig(({ mode }) => ({
     chunkSizeWarningLimit: 1000,
     // Enable source maps for better debugging
     sourcemap: false,
-    // Minify for production
-    minify: 'terser',
-    terserOptions: {
-      compress: {
-        drop_console: true,
-        drop_debugger: true,
-      },
-    },
+    // Minify for production using esbuild (faster and no extra dependency)
+    minify: 'esbuild',
   },
 }));

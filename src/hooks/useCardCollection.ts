@@ -1,34 +1,6 @@
 import { useCollectionStore } from '../stores/collectionStore';
 import { getCardPrice } from '../services/api';
 
-// Import the one true, consolidated PokemonCard type!
-import type { PokemonCard } from '../types/index';
-
-// Variant IDs as per official API
-export const VARIANT_IDS = [
-  'normal',
-  'reverseHolofoil',
-  'holofoil',
-  'firstEditionNormal',
-  'firstEditionHolofoil',
-] as const;
-
-export type VariantId = typeof VARIANT_IDS[number];
-
-export interface Variant {
-  id: VariantId;
-  name: string;
-}
-
-export interface CardCollectionProgress {
-  owned: number;
-  total: number;
-  percentage: number;
-}
-
-/**
- * Custom hook for collection actions using API rules and shared types.
- */
 export const useCardCollection = (setId?: string) => {
   const {
     collection,
@@ -45,62 +17,66 @@ export const useCardCollection = (setId?: string) => {
     getFavoriteCard
   } = useCollectionStore();
 
-  /**
-   * Return available variants for a card (API-aligned).
-   */
-  const getAvailableVariants = (card: PokemonCard): Variant[] => {
-    if (!card.variants) return [];
+  // Get available variants based on card rarity and type
+  const getAvailableVariants = (card: any) => {
     return [
-      card.variants.normal && { id: 'normal', name: 'Normal' },
-      card.variants.reverseHolofoil && { id: 'reverseHolofoil', name: 'Reverse Holo' },
-      card.variants.holofoil && { id: 'holofoil', name: 'Holofoil' },
-      card.variants.firstEditionNormal && { id: 'firstEditionNormal', name: 'First Edition Normal' },
-      card.variants.firstEditionHolofoil && { id: 'firstEditionHolofoil', name: 'First Edition Holofoil' },
-    ].filter(Boolean) as Variant[];
+      { id: 'regular', name: 'Normal' },
+      { id: 'reverse-holo', name: 'Reverse Holo' },
+      { id: 'holo', name: 'Holo' },
+      { id: 'full-art', name: 'Full Art' },
+      { id: 'alt-art', name: 'Alt Art' },
+      { id: 'rainbow', name: 'Rainbow Rare' },
+      { id: 'gold', name: 'Gold Rare' },
+      { id: 'secret', name: 'Secret Rare' }
+    ].filter(variant => {
+      if (!card?.rarity) return false;
+      
+      if (card.rarity === 'Common' || card.rarity === 'Uncommon') {
+        return ['regular', 'reverse-holo'].includes(variant.id);
+      }
+      
+      if (card.rarity === 'Rare') {
+        return ['regular', 'reverse-holo', 'holo'].includes(variant.id);
+      }
+
+      if (card.rarity === 'Illustration Rare' || card.rarity === 'Special Illustration Rare') {
+        return ['holo'].includes(variant.id);
+      }
+      
+      return variant.id !== 'reverse-holo';
+    });
   };
 
-  /**
-   * Calculate collection progress for a card using available variants.
-   */
-  const getCardCollectionProgress = (
-    cardId: string,
-    availableVariants: Variant[]
-  ): CardCollectionProgress => {
+  // Calculate collection progress for a specific card
+  const getCardCollectionProgress = (cardId: string, availableVariants: any[]) => {
     if (!setId) return { owned: 0, total: 0, percentage: 0 };
-    const cardVariants = getCardVariants(setId, cardId) ?? {};
-    const ownedVariants = Object.values(cardVariants).filter(qty => qty > 0).length;
+    
+    const cardVariants = getCardVariants(setId, cardId);
+    const ownedVariants = Object.values(cardVariants).filter(quantity => quantity > 0).length;
     const totalVariants = availableVariants.length;
-
+    
     return {
       owned: ownedVariants,
       total: totalVariants,
-      percentage: totalVariants > 0 ? (ownedVariants / totalVariants) * 100 : 0,
+      percentage: totalVariants > 0 ? (ownedVariants / totalVariants) * 100 : 0
     };
   };
 
-  /**
-   * Calculate total collection value for a card.
-   */
-  const getCardCollectionValue = (card: PokemonCard, cardId: string): number => {
+  // Calculate total collection value for a specific card
+  const getCardCollectionValue = (card: any, cardId: string) => {
     if (!setId) return 0;
-
-    const cardVariants = getCardVariants(setId, cardId) ?? {};
+    
+    const cardVariants = getCardVariants(setId, cardId);
     return Object.entries(cardVariants).reduce((total, [variant, quantity]) => {
-      const price = getCardPrice(card, variant); // API-compliant key
+      const price = getCardPrice(card, variant);
       return total + (price * quantity);
     }, 0);
   };
 
-  /**
-   * Handle quantity changes robustly.
-   */
-  const handleQuantityChange = (
-    cardId: string,
-    card: PokemonCard,
-    variantId: VariantId,
-    newQuantity: number
-  ) => {
+  // Handle quantity changes with validation
+  const handleQuantityChange = (cardId: string, card: any, variantId: string, newQuantity: number) => {
     if (!setId) return;
+
     if (newQuantity <= 0) {
       removeFromCollection(setId, cardId, variantId, getCardQuantity(setId, cardId, variantId));
     } else {
@@ -113,13 +89,11 @@ export const useCardCollection = (setId?: string) => {
     }
   };
 
-  /**
-   * Type-safe check for card presence in collection.
-   */
-  const isCardInCollection = (cardId: string): boolean => {
+  // Check if a card is in collection
+  const isCardInCollection = (cardId: string) => {
     if (!setId) return false;
-    const setCollection = collection[setId] ?? [];
-    return setCollection.some((c: { cardId: string }) => c.cardId === cardId);
+    const setCollection = collection[setId] || [];
+    return setCollection.some(c => c.cardId === cardId);
   };
 
   return {
@@ -136,8 +110,8 @@ export const useCardCollection = (setId?: string) => {
     getRecentlyAddedCards,
     getTopValueCards,
     getFavoriteCard,
-
-    // Helpers
+    
+    // Helper methods
     getAvailableVariants,
     getCardCollectionProgress,
     getCardCollectionValue,

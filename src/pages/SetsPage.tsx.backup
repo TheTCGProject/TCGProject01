@@ -1,0 +1,10 @@
+import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';  const filteredAndSortedSets = useMemo(() => {
+    if (!sets.length) return [];
+    
+    return sets
+      .filter(set => {
+        const matchesSearch = 
+          set.name.toLowerCase().includes(filters.searchTerm.toLowerCase()) ||
+          set.id.toLowerCase().includes(filters.searchTerm.toLowerCase()) ||
+          set.series.toLowerCase().includes(filters.searchTerm.toLowerCase());
